@@ -1,0 +1,19 @@
+name: Refresh OpenMind knowledge
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh saved website sources
+        env:
+          OPENMIND_URL: ${{ secrets.OPENMIND_URL }}
+          OPENMIND_API_KEY: ${{ secrets.OPENMIND_API_KEY }}
+        run: |
+          test -n "$OPENMIND_URL"
+          test -n "$OPENMIND_API_KEY"
+          curl --fail --silent --show-error -X POST \
+            "$OPENMIND_URL/knowledge/refresh" \
+            -H "Authorization: Bearer $OPENMIND_API_KEY"
