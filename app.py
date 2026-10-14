@@ -136,12 +136,17 @@ async def openmind_ui_session(request, call_next):
     return response
 
 
+
 # ============================================================
 # API KEY MANAGEMENT
 # ============================================================
 
 def ensure_api_key():
     """Create a local API key only when one does not already exist."""
+
+    # Hosted environment: use the configured secret.
+    if os.getenv("OPENMIND_API_KEY"):
+        return
 
     if KEY_FILE.exists() and KEY_HASH_FILE.exists():
         return
@@ -156,7 +161,16 @@ def ensure_api_key():
 
 
 def verify_api_key(api_key: str | None) -> bool:
-    if not api_key or not KEY_HASH_FILE.exists():
+    if not api_key:
+        return False
+
+    # Use the environment key on Render or another hosted service.
+    env_key = os.getenv("OPENMIND_API_KEY")
+    if env_key:
+        return secrets.compare_digest(api_key, env_key)
+
+    # Preserve existing local key verification.
+    if not KEY_HASH_FILE.exists():
         return False
 
     stored_hash = KEY_HASH_FILE.read_text(
@@ -173,18 +187,18 @@ def verify_api_key(api_key: str | None) -> bool:
 def require_api_key(api_key: str | None):
     if _UI_SESSION_AUTH.get():
         return
+
     if not verify_api_key(api_key):
         raise HTTPException(
             status_code=401,
             detail=(
                 "Invalid or missing API key. "
-                "Check data/FIRST_RUN_API_KEY.txt."
+                "Check your API key configuration."
             ),
         )
 
 
 ensure_api_key()
-
 
 # ============================================================
 # KNOWLEDGE BASE
