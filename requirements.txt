@@ -1,0 +1,10 @@
+
+fastapi
+uvicorn[standard]
+requests
+beautifulsoup4
+scikit-learn
+ddgs
+pypdf
+onnxruntime-genai
+python-multipart
