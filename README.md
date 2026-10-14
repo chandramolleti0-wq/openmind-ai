@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # OpenMind AI — web-connected knowledge assistant starter
 
 This project gives you:
@@ -73,3 +74,7 @@ The `/knowledge/refresh` endpoint refreshes URLs you've already added. It does n
 - Don't put your secret key in client-side JavaScript for a public app; this demo does so only to make local testing easy. For a public multi-user site, put authenticated calls behind a backend session.
 - Only retrieve pages you are allowed to access and respect site terms and robots policies.
 - Add rate limits and quotas before sharing publicly.
+=======
+# openmind-ai
+AI-powered assistant with a local language model, chat interface, and secure API access.
+>>>>>>> b14929a9d2e15e98682538ecf98a21f862076d3c
