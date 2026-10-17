@@ -968,11 +968,8 @@ def generate_local_answer(
         params = og.GeneratorParams(model)
         params.set_search_options(
             max_length=len(input_tokens) + 256,
-            do_sample=True,
-            top_k=40,
-            temperature=0.7,
-            top_p=0.9,
-            repetition_penalty=1.1,
+            do_sample=False,
+            repetition_penalty=1.05,
         )
 
         generator = og.Generator(model, params)
@@ -2752,41 +2749,86 @@ def ask(
 
 
 
-    # Render hosts the UI only. Phi-3 CUDA inference stays on Windows.
-
+    # On Render, send inference requests to the secured local bridge.
     if (
-
         os.getenv("RENDER", "").lower() == "true"
-
         or os.getenv("RENDER_SERVICE_ID")
-
     ):
+        import json
+        import urllib.error
+        import urllib.request
+
+        bridge_url = os.getenv("OPENMIND_BRIDGE_URL", "").rstrip("/")
+        bridge_token = os.getenv("OPENMIND_BRIDGE_TOKEN", "")
+
+        if not bridge_url or not bridge_token:
+            raise HTTPException(
+                status_code=503,
+                detail="Local inference bridge is not configured on Render.",
+            )
+
+        payload = json.dumps({
+            "question": question,
+            "context": "",
+        }).encode("utf-8")
+
+        bridge_request = urllib.request.Request(
+            f"{bridge_url}/infer",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-Bridge-Token": bridge_token,
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(
+                bridge_request, timeout=180
+            ) as response:
+                bridge_result = json.loads(
+                    response.read().decode("utf-8")
+                )
+        except urllib.error.HTTPError as exc:
+            print(f"Inference bridge HTTP error: {exc.code}")
+            raise HTTPException(
+                status_code=503,
+                detail="The local inference bridge rejected or failed the request.",
+            ) from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            print(f"Inference bridge connection error: {exc}")
+            raise HTTPException(
+                status_code=503,
+                detail="Cannot reach the local inference bridge. Check that your PC and tunnel are running.",
+            ) from exc
+
+        answer = bridge_result.get("answer")
+        if not isinstance(answer, str) or not answer.strip():
+            raise HTTPException(
+                status_code=503,
+                detail="The local inference bridge returned an empty answer.",
+            )
+
+        append_chat(request.session_id, "user", question)
+        append_chat(
+            request.session_id,
+            "assistant",
+            answer,
+            {"mode": "remote local Phi-3"},
+        )
+        record_metric(
+            "ask_bridge",
+            time.perf_counter() - request_started,
+            True,
+        )
 
         return {
-
-            "answer": (
-
-                "OpenMind AI is running in hosted UI mode. "
-
-                "The Phi-3 CUDA model runs only on your Windows "
-
-                "computer and is not installed on this server. "
-
-                "To use AI chat, start OpenMind AI on your Windows "
-
-                "computer and open http://127.0.0.1:8001."
-
-            ),
-
+            "answer": answer,
             "sources": [],
-
             "generated_at": datetime.now().isoformat(),
-
-            "mode": "hosted UI; local model unavailable",
-
+            "mode": "remote local Phi-3 via inference bridge",
+            "session_id": request.session_id,
         }
-
-
 
     web_results = []
 
